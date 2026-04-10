@@ -119,21 +119,3 @@ with c1:
         "text/csv"
     )
 
-# Excel opcional (seguro)
-with c2:
-    try:
-        import openpyxl
-
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False)
-
-        st.download_button(
-            "⬇ Descargar Excel",
-            buffer.getvalue(),
-            "datos.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    except ImportError:
-        st.info("💡 Instala 'openpyxl' para habilitar descarga en Excel")
