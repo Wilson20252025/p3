@@ -106,7 +106,7 @@ if mostrar_stats:
         st.warning("No se pudieron generar estadísticas")
 
 
-st.metric("Promedio precio", round(df["precio"].mean(), 2))
+st.metric("Promedio precio", round(df["precio_unitario"].mean(), 2))
 
 # ── Descargas ──────────────────────────────────────────
 st.divider()
