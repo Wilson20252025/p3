@@ -2,38 +2,42 @@ import streamlit as st
 import pandas as pd
 import io
 
-# ── Configuración ─────────────────────────────────────────
+# ── Configuración ───────────────────────────────────────
 st.set_page_config(page_title="Cargador de Datos", page_icon="📊", layout="wide")
 
 st.title("📊 Cargador de Datos")
-st.caption("Sube archivos CSV o Excel y explora rápidamente")
+st.caption("Carga archivos CSV o Excel y explora fácilmente")
 
-# ── Función de carga ─────────────────────────────────────
+# ── Función de carga segura ─────────────────────────────
 @st.cache_data
 def cargar_archivo(file, sheet_name=0):
     nombre = file.name.lower()
     bytes_data = file.read()
 
-    if nombre.endswith(".csv"):
-        contenido = bytes_data.decode("utf-8", errors="replace")
-        sep = ";" if contenido.count(";") > contenido.count(",") else ","
-        return pd.read_csv(io.StringIO(contenido), sep=sep)
+    try:
+        if nombre.endswith(".csv"):
+            contenido = bytes_data.decode("utf-8", errors="replace")
+            sep = ";" if contenido.count(";") > contenido.count(",") else ","
+            return pd.read_csv(io.StringIO(contenido), sep=sep)
 
-    elif nombre.endswith((".xlsx", ".xls")):
-        return pd.read_excel(io.BytesIO(bytes_data), sheet_name=sheet_name)
+        elif nombre.endswith((".xlsx", ".xls")):
+            return pd.read_excel(io.BytesIO(bytes_data), sheet_name=sheet_name)
+
+    except Exception as e:
+        return None
 
     return None
 
 
-# ── Sidebar ──────────────────────────────────────────────
+# ── Sidebar ────────────────────────────────────────────
 with st.sidebar:
     st.header("⚙️ Opciones")
     filas = st.slider("Filas a mostrar", 5, 100, 20)
     mostrar_nulos = st.checkbox("Resaltar nulos", True)
-    mostrar_stats = st.checkbox("Estadísticas", False)
+    mostrar_stats = st.checkbox("Mostrar estadísticas", False)
 
 
-# ── Upload ───────────────────────────────────────────────
+# ── Upload ─────────────────────────────────────────────
 archivo = st.file_uploader("Sube tu archivo", type=["csv", "xlsx", "xls"])
 
 if not archivo:
@@ -41,73 +45,95 @@ if not archivo:
     st.stop()
 
 
-# ── Excel: selección de hoja ─────────────────────────────
+# ── Selección de hoja (Excel) ──────────────────────────
 sheet = 0
 if archivo.name.endswith((".xlsx", ".xls")):
-    excel = pd.ExcelFile(archivo)
-    hojas = excel.sheet_names
+    try:
+        excel = pd.ExcelFile(archivo)
+        hojas = excel.sheet_names
 
-    if len(hojas) > 1:
-        sheet = st.selectbox("Selecciona hoja", hojas)
-    else:
-        sheet = hojas[0]
+        if len(hojas) > 1:
+            sheet = st.selectbox("Selecciona hoja", hojas)
+        else:
+            sheet = hojas[0]
+
+    except Exception:
+        st.warning("No se pudieron leer las hojas del Excel")
 
 
-# ── Carga ───────────────────────────────────────────────
+# ── Cargar datos ───────────────────────────────────────
 df = cargar_archivo(archivo, sheet)
 
 if df is None:
-    st.error("No se pudo leer el archivo")
+    st.error("❌ No se pudo leer el archivo. Verifica el formato.")
     st.stop()
 
 
-# ── Métricas ────────────────────────────────────────────
-col1, col2, col3 = st.columns(3)
-col1.metric("Filas", df.shape[0])
-col2.metric("Columnas", df.shape[1])
-col3.metric("Nulos", int(df.isnull().sum().sum()))
+# ── Métricas ───────────────────────────────────────────
+c1, c2, c3 = st.columns(3)
+c1.metric("Filas", df.shape[0])
+c2.metric("Columnas", df.shape[1])
+c3.metric("Nulos", int(df.isnull().sum().sum()))
 
 
-# ── Filtro columnas ─────────────────────────────────────
-cols = st.multiselect("Columnas", df.columns, default=df.columns)
+# ── Selección de columnas ──────────────────────────────
+cols = st.multiselect("Columnas a mostrar", df.columns, default=df.columns)
 df_view = df[cols] if cols else df
 
 
-# ── DataFrame ───────────────────────────────────────────
-st.subheader("Vista de datos")
+# ── Vista de datos ─────────────────────────────────────
+st.subheader("📋 Vista de datos")
 
-if mostrar_nulos:
-    st.dataframe(df_view.head(filas).style.highlight_null(color="red"))
-else:
-    st.dataframe(df_view.head(filas))
+try:
+    if mostrar_nulos:
+        st.dataframe(
+            df_view.head(filas).style.highlight_null(color="red"),
+            use_container_width=True
+        )
+    else:
+        st.dataframe(df_view.head(filas), use_container_width=True)
+
+except Exception:
+    st.dataframe(df_view.head(filas), use_container_width=True)
 
 
-# ── Estadísticas ────────────────────────────────────────
+# ── Estadísticas ───────────────────────────────────────
 if mostrar_stats:
-    st.subheader("Estadísticas")
-    st.dataframe(df_view.describe(include="all"))
+    st.subheader("📈 Estadísticas")
+    try:
+        st.dataframe(df_view.describe(include="all"), use_container_width=True)
+    except Exception:
+        st.warning("No se pudieron generar estadísticas")
 
 
-# ── Descarga ────────────────────────────────────────────
+# ── Descargas ──────────────────────────────────────────
 st.divider()
-
 c1, c2 = st.columns(2)
 
+# CSV siempre disponible
 with c1:
     st.download_button(
-        "Descargar CSV",
+        "⬇ Descargar CSV",
         df.to_csv(index=False).encode("utf-8"),
         "datos.csv",
         "text/csv"
     )
 
+# Excel opcional (seguro)
 with c2:
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
+    try:
+        import openpyxl
 
-    st.download_button(
-        "Descargar Excel",
-        buffer.getvalue(),
-        "datos.xlsx"
-    )
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False)
+
+        st.download_button(
+            "⬇ Descargar Excel",
+            buffer.getvalue(),
+            "datos.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except ImportError:
+        st.info("💡 Instala 'openpyxl' para habilitar descarga en Excel")
