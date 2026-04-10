@@ -107,6 +107,7 @@ if mostrar_stats:
 
 
 st.metric("Promedio precio", round(df["precio_unitario"].mean(), 2))
+st.write(df.describe())
 
 # ── Descargas ──────────────────────────────────────────
 st.divider()
